@@ -41,23 +41,25 @@ function oke.compass.save()
 end
 
 function oke.compass.resume()
-  oke.compass.moveTo(save.x, save.y, save.z)
+  oke.compass.moveTo(save.x, save.y, save.z, true)
   while oke.compass.facing ~= save.facing do
     oke.turn(true)
   end
 end
 
 --移動した後の向きは不定
-function oke.compass.moveTo(x, y, z)
+function oke.compass.moveTo(x, y, z, resume)
   local function facing(face)
     while oke.compass.facing ~= face do
       oke.turn(true)
     end
   end
-  if y < oke.compass.y then
-    oke.down(oke.compass.y - y)
-  elseif y > oke.compass.y then
-    oke.up(y - oke.compass.y)
+  if not resume then
+    if y < oke.compass.y then
+      oke.down(oke.compass.y - y)
+    elseif y > oke.compass.y then
+      oke.up(y - oke.compass.y)
+    end
   end
   if x < oke.compass.x then
     facing(3)
@@ -72,6 +74,13 @@ function oke.compass.moveTo(x, y, z)
   elseif z > oke.compass.z then
     facing(2)
     oke.forward(z - oke.compass.z)
+  end
+  if resume then
+    if y < oke.compass.y then
+      oke.down(oke.compass.y - y)
+    elseif y > oke.compass.y then
+      oke.up(y - oke.compass.y)
+    end
   end
 end
 
