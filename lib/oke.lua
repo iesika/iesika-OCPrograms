@@ -122,7 +122,7 @@ function oke.countToolStack(filter)
   oke.equip()
   local stack = component.inventory_controller.getStackInInternalSlot(slot)
   if filter and filter(stack) and stack and stack.size then
-    size + stack.size
+    size = size + stack.size
   elseif not filter then
     size = size + component.robot.count(slot)
   end
