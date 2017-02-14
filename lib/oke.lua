@@ -113,6 +113,24 @@ function oke.countStack(filter)
   return size
 end
 
+--ロボット内にあるfilterに合致するツールスロット内のアイテムの数を数える
+function oke.countToolStack(filter)
+  checkComponent("inventory_controller")
+  checkComponent("robot")
+  local size = 0
+  local slot = component.robot.select()
+  oke.equip()
+  local stack = component.inventory_controller.getStackInInternalSlot(slot)
+  if filter and filter(stack) and stack and stack.size then
+    size + stack.size
+  elseif not filter then
+    size = size + component.robot.count(slot)
+  end
+  component.robot.select(slot)
+  oke.equip()
+  return size
+end
+
 --side方向にインベントリがあればfilterに合致するアイテムがあればcountの数だけ取得する
 function oke.pullStack(side, filter, count)
   checkComponent("inventory_controller")
@@ -169,6 +187,12 @@ function oke.merge()
     end 
   end
   component.robot.select(beforeSlot)
+end
+
+function oke.equip()
+  checkComponent("inventory_controller")
+  checkComponent("robot")
+  return component.inventory_controller.equip()
 end
 
 --if robot find obstacle, robot will try remove it.
