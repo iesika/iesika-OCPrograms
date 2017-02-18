@@ -31,18 +31,16 @@ function oke.compass.getPos()
 end
 
 --移動した後の向きは不定
-function oke.compass.moveTo(x, y, z, resume)
+function oke.compass.moveTo(x, y, z)
   local function facing(face)
     while oke.compass.facing ~= face do
       oke.turn(true)
     end
   end
-  if not resume then
-    if y < oke.compass.y then
-      oke.down(oke.compass.y - y)
-    elseif y > oke.compass.y then
-      oke.up(y - oke.compass.y)
-    end
+  if y < oke.compass.y then
+    oke.down(oke.compass.y - y)
+  elseif y > oke.compass.y then
+    oke.up(y - oke.compass.y)
   end
   if x < oke.compass.x then
     facing(3)
@@ -57,13 +55,6 @@ function oke.compass.moveTo(x, y, z, resume)
   elseif z > oke.compass.z then
     facing(2)
     oke.forward(z - oke.compass.z)
-  end
-  if resume then
-    if y < oke.compass.y then
-      oke.down(oke.compass.y - y)
-    elseif y > oke.compass.y then
-      oke.up(y - oke.compass.y)
-    end
   end
 end
 
