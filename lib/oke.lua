@@ -163,7 +163,7 @@ function oke.ejectStack(side, filter, count)
     local stack = component.inventory_controller.getStackInInternalSlot(slot)
     if stack and filter and filter(stack) then
       component.robot.select(slot)
-      isEjected = isEjected or component.robot.drop(side, remain)
+      isEjected = component.robot.drop(side, remain) or isEjected
       remain = remain - stack.size
       if remain <= 0 then
         break
