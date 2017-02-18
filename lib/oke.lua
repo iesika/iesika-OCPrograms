@@ -20,10 +20,6 @@ oke.compass.facing = 0
       ↓2(+z)
 --]]
 
-local save = {}
-save.x, save.y, save.z = 0, 0, 0
-save.facing = 0
-
 --現在向いている方向, 位置を初期化する
 function oke.compass.init()
   oke.compass.x, oke.compass.y, oke.compass.z = 0, 0 ,0
@@ -32,19 +28,6 @@ end
 
 function oke.compass.getPos()
   return oke.compass.x, oke.compass.y, oke.compass.z
-end
-
---現在地と向いている方向をresumeを呼んだ時に戻れるように保存する
-function oke.compass.save()
- save.x, save.y, save.z = oke.compass.x, oke.compass.y, oke.compass.z
- save.facing = oke.compass.facing
-end
-
-function oke.compass.resume()
-  oke.compass.moveTo(save.x, save.y, save.z, true)
-  while oke.compass.facing ~= save.facing do
-    oke.turn(true)
-  end
 end
 
 --移動した後の向きは不定
