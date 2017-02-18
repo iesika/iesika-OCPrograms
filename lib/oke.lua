@@ -59,6 +59,12 @@ function oke.compass.moveTo(x, y, z)
   end
 end
 
+function oke.compass.turnTo(sideNo)
+  while oke.compass.facing ~= sideNo do
+    oke.turn(true)
+  end
+end
+
 local function checkComponent(componentName)
   if not component.isAvailable(componentName) then
     io.write("require " .. componentName .. "Aborting...")
@@ -233,12 +239,6 @@ function oke.move(side, distance, soft)
     while not tryMove() do
       os.sleep(cfg.interval)
     end
-  end
-end
-
-function oke.turnTo(sideNo)
-  while oke.compass.facing ~= sideNo do
-    oke.turn(true)
   end
 end
 
