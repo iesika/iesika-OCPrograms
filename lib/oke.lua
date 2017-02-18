@@ -78,7 +78,7 @@ function oke.countStack(filter)
   local size = 0
   for slot = 1, component.robot.inventorySize() do
     local stack = component.inventory_controller.getStackInInternalSlot(slot)
-    if filter and filter(stack) and stack and stack.size then
+    if filter and stack and filter(stack) and stack.size then
       size = size + stack.size
     elseif not filter then
       size = size + component.robot.count(slot)
@@ -95,7 +95,7 @@ function oke.countToolStack(filter)
   local slot = component.robot.select()
   oke.equip()
   local stack = component.inventory_controller.getStackInInternalSlot(slot)
-  if filter and filter(stack) and stack and stack.size then
+  if filter and stack and filter(stack) and stack.size then
     size = size + stack.size
   elseif not filter then
     size = size + component.robot.count(slot)
@@ -276,7 +276,7 @@ function oke.placeStack(direction, filter, soft)
   checkComponent("robot")
   for slot = 1, component.robot.inventorySize() do
     stack = component.inventory_controller.getStackInInternalSlot(slot)
-    if filter and filter(stack) then
+    if filter and stack and filter(stack) then
        return oke.place(direction, slot, soft)
     end
   end
