@@ -3,6 +3,7 @@
 local oke = {}
 
 local component = require("component")
+local computer = require("computer")
 local sides = require("sides")
 
 local cfg = {
@@ -69,6 +70,29 @@ function oke.prompt(message)
   io.write(message .. " [Y/n] ")
   local result = io.read()
   return result and (result == "" or result:lower() == "y")
+end
+
+--充電を待機する
+function oke.recharge()
+  repeat
+    computer.pullSignal(cfg.interval)
+  until computer.energy() >= computer.maxEnergy() - 100
+end
+
+--toolスロットのアイテムを充電する(ic2の装備を想定)
+function oke.rechargeTool(side)
+  checkComponent("inventory_controller")
+  local ic = component.inventory_controller
+  local slot = component.robot.select()
+  ic.equip()
+  local stack = ic.getStackInInternalSlot(slot)
+  if stack and ic.dropIntoSlot(side, 1) then
+    repeat 
+      local tool = ic.getStackInSlot(sides.down, 1)
+    until tool.charge >= tool.maxCharge
+    ic.suckFromSlot(side, 1)
+  end
+  ic.equip()
 end
 
 --ロボット内にあるfilterに合致するアイテムの数を数える
