@@ -236,6 +236,12 @@ function oke.move(side, distance, soft)
   end
 end
 
+function oke.turnTo(sideNo)
+  while oke.compass.facing ~= sideNo do
+    oke.turn(true)
+  end
+end
+
 function oke.forward(distance, soft)
   distance = distance or 1
   oke.move(sides.forward, distance, soft)
