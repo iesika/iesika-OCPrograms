@@ -230,6 +230,9 @@ end
 --just readbilty
 function oke.turn(clockwise)
   checkComponent("robot")
+  if clockwise == nil then
+    clockwise = false
+  end
   local flag = component.robot.turn(clockwise)
   if flag then
     oke.compass.facing = (oke.compass.facing + (clockwise and 1 or -1)) % 4
