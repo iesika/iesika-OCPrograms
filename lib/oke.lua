@@ -21,6 +21,14 @@ oke.compass.facing = 0
       ↓2(+z)
 --]]
 
+--可読性用enum
+oke.dir = {
+  forward = 0,
+  right = 1,
+  back = 2,
+  left = 3
+}
+
 --現在向いている方向, 位置を初期化する
 function oke.compass.init()
   oke.compass.x, oke.compass.y, oke.compass.z = 0, 0 ,0
