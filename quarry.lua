@@ -135,7 +135,7 @@ do
   maintenance()
   oke.compass.moveTo(0, 0, 0)
   for no = 0, length do
-    io.write("digging hole #"..no)
+    io.write("digging hole #"..no.."\n")
     local quarry_pos = {-((diameter - 1) / 2), 0, -1 - diameter * no}
     --quarryへ
     oke.compass.moveTo(table.unpack(quarry_pos))
