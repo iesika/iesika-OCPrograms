@@ -6,7 +6,7 @@ local bigfont = {}
 local font_data = {}
 
 function bigfont.load(size)
-    local filename = "bigfont-size" .. tostring(size)
+    local filename = "bigfont-size" .. tostring(size)..".hex"
     local file = io.open("/lib/"..filename, "r")
     font_data[size] = {}
 
