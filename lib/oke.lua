@@ -255,6 +255,11 @@ function oke.forward(distance, soft)
   oke.move(sides.forward, distance, soft)
 end
 
+function oke.back(distance, soft)
+  distance = distance or 1
+  oke.move(sides.back, distance, soft)
+end
+
 function oke.up(distance, soft)
   distance = distance or 1
   oke.move(sides.up, distance, soft)
