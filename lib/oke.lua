@@ -283,6 +283,14 @@ function oke.turn(clockwise)
   return flag
 end
 
+function oke.turnRight()
+  return oke.turn(true)
+end
+
+function oke.turnLeft()
+  return oke.turn(false)
+end
+
 function oke.turnAround(clockwise)
   checkComponent("robot")
   if clockwise == nil then
