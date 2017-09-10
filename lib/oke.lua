@@ -10,6 +10,10 @@ local cfg = {
   interval = 1
 }
 
+local state = {
+  slot = 1
+}
+
 --相対座標管理用
 --turnやmoveした際に移動量, 回転数を記憶し, 相対位置に移動できるようにする
 oke.compass = {}
@@ -210,8 +214,10 @@ end
 --if robot find obstacle, robot will try remove it.
 function oke.move(side, distance, soft)
   checkComponent("robot")
-  if side == sides.back then
+  local backflag = false
+  if side == sides.back and not soft then
     side = sides.forward
+    backflag = true
     oke.turnAround(true)
   elseif side == sides.right or side == sides.left then
     oke.turn(side == sides.right)
@@ -229,15 +235,31 @@ function oke.move(side, distance, soft)
         oke.compass.y = oke.compass.y - 1
       elseif side == sides.up then
         oke.compass.y = oke.compass.y + 1
-      elseif side == sides.forward then
+      elseif side == sides.forward or side == sides.back then
         if oke.compass.facing == 0 then
-          oke.compass.z = oke.compass.z - 1
+          if backflag and not soft then
+            oke.compass.z = oke.compass.z + 1
+          else
+            oke.compass.z = oke.compass.z - 1
+          end
         elseif oke.compass.facing == 1 then
-          oke.compass.x = oke.compass.x + 1
+          if backflag and not soft then
+            oke.compass.x = oke.compass.x - 1
+          else
+            oke.compass.x = oke.compass.x + 1
+          end
         elseif oke.compass.facing == 2 then
-          oke.compass.z = oke.compass.z + 1
+          if backflag and not soft then
+            oke.compass.z = oke.compass.z - 1
+          else
+            oke.compass.z = oke.compass.z + 1
+          end
         elseif oke.compass.facing == 3 then
-          oke.compass.x = oke.compass.x - 1
+          if backflag and not soft then
+            oke.compass.x = oke.compass.x + 1
+          else
+            oke.compass.x = oke.compass.x - 1
+          end
         end
       end
     end
@@ -247,6 +269,9 @@ function oke.move(side, distance, soft)
     while not tryMove() do
       os.sleep(cfg.interval)
     end
+  end
+  if backflag and not soft then
+    oke.turnAround(true)
   end
 end
 
@@ -328,13 +353,20 @@ end
 function oke.placeStack(direction, filter, soft)
   checkComponent("inventory_controller")
   checkComponent("robot")
-  for slot = 1, component.robot.inventorySize() do
-    stack = component.inventory_controller.getStackInInternalSlot(slot)
-    if filter and stack and filter(stack) then
-       return oke.place(direction, slot, soft)
+  --前回使ったスロットを先に調べる
+  local bs = component.inventory_controller.getStackInInternalSlot(state.slot)
+  if filter and bs and filter(bs) then
+    return oke.place(direction, state.slot, soft)
+  else
+    for slot = 1, component.robot.inventorySize() do
+      stack = component.inventory_controller.getStackInInternalSlot(slot)
+      if filter and stack and filter(stack) then
+        state.slot = slot
+        return oke.place(direction, slot, soft)
+      end
     end
+    return false
   end
-  return false
 end
 
 function oke.suckAll()
