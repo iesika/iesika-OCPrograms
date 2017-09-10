@@ -354,6 +354,11 @@ function oke.swing(side)
   return component.robot.swing(side or sides.forward)
 end
 
+function oke.use(side)
+  checkComponent("robot")
+  return component.robot.use(side or sides.forward)
+end
+
 --soft == trueで既にブロックがあった場合破壊を試みない
 function oke.placeStack(direction, filter, soft)
   checkComponent("inventory_controller")
