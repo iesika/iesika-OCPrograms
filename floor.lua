@@ -1,3 +1,21 @@
+--[[
+@file floor.lua
+@brief OpenComputersのロボットに床を作らせる
+@detail
+燃料は考慮しない, 貼るブロックはロボットのインベントリ内のものを使う,
+貼り終えたら元の位置，向きに戻る
+@args1 (width : number, nil) 横の長さ (defalt:4)
+@args2 (height : number, nil) 縦の長さ (defalt:4)
+@options
+-e
+  ロボットのツールスロットにextracell2のblockcontainerがあるものとして
+  robotのインベントリ内の資材ではなく，これを用いることで床貼りを行う
+-f
+  ブロックを配置する場所に既にブロックがあった場合
+@author iesika
+@date 2017/9/12~
+--]]
+
 local component = require ("component")
 local sides = require("sides")
 local shell = require("shell")
@@ -21,13 +39,18 @@ local function selectNotEmptySlot()
   return false
 end
 
+--床はりルーチン
 for i = 1, width do
   for j = 1, height do
     if option.f and component.robot.detect(sides.down) then
       component.robot.swing(sides.down)
     end
     selectNotEmptySlot()
-    component.robot.place(sides.down)
+    if options["e"] then
+      robot.useDown()
+    else
+      robot.placeDown()
+    end
     if j == height then--奥までいったらUターンする
       component.robot.turn(i%2 == 1)
       repeat until component.robot.move(sides.forward)
@@ -37,3 +60,17 @@ for i = 1, width do
     end
   end
 end
+
+--元の位置に戻る
+if i%2 == 0 then
+  robot.turnLeft()
+else
+  for i = 1, height - 1 do
+    repeat until component.robot.move(sides.forward)
+  end
+  robot.turnRigth()
+end
+for i = 1, width do
+  repeat until component.robot.move(sides.forward)
+end
+robot.turnRigth()
