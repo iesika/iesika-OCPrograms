@@ -1,122 +1,447 @@
--- libray for OpenComputers robot
--- over kill engine (Carnage Heart)
+--[[
+@file oke.lua
+@brief libray for OpenComputers robot, Over Kill Engine (Carnage Heart)
+@author iesika
+@date 2017/9/12~
+@detail
+  主にcomponent.robot, component.inventory_controllerのwrapperを提供する
+--]]
+
 local oke = {}
 
 local component = require("component")
 local computer = require("computer")
 local sides = require("sides")
 
-local cfg = {
-  interval = 1
-}
+--[[ init ]]--
+--robot専用ライブラリであるから，robot内環境以外では使えなくする．
+if not component.isAvailable("robot") then
+  return nil
+end
 
-local state = {
-  slot = 1
-}
+oke.version = 1
 
---相対座標管理用
---turnやmoveした際に移動量, 回転数を記憶し, 相対位置に移動できるようにする
-oke.compass = {}
-oke.compass.x, oke.compass.y, oke.compass.z = 0, 0 ,0
-oke.compass.facing = 0
+--[[ Constants ]]--
+
+local CONSTANTS = {}
+--充電待機時に，充電状態を再確認するまでの長さ
+CONSTANTS.CHARGE_INTERVAL = 5
+--移動失敗した際に、再度移動を試みるまでのwait時間
+CONSTANTS.MOVE_FAILINTERVAL = 0
+--ブロック設置失敗した際に、再度ブロック設置を試みるまでのwait時間
+CONSTANTS.PLACE_INTERVAL = 5
+--インベントリコントローラーがない場合のエラー表示
+CONSTANTS.IC_ERROR = "require inventory controller."
+CONSTANTS.NOEQUIP_ERROR = "robot does not equip tool"
+CONSTANTS.NOIC2EQUIP_ERROR = "robot does not have valid ic2 tool"
+CONSTANTS.NOCHARGEBOX_ERROR = "robot can't insert ic2 tool to charge box"
+--tractor beamがない場合のエラー表示
+CONSTANTS.TB_ERROR = "require tractor beam."
+--geolyzerがない場合のエラー
+CONSTANTS.GEO_ERROR = "require geolyzer."
+
+--ロボットのツールスロットにアイテムがない場合のエラー表示
+
+--[[ States ]]--
+
+local state = {}
+--インベントリ操作高速化の為、前回使ったスロットを記憶しておく
+state.slot = 1
+
+--[[ Utility ]]--
+
+
+--[[ API ]]--
+
+--[[ API - utility ]]--
+
 --[[
-      ↑0(-z)
-3(-x)← →1(+x)
-      ↓2(+z)
+@fn
+ロボット使用者に許可を求める
+@brief robotのスクリーンに実行許可を得られるかの質問を表示する
+@param (message : string) 表示するメッセージ
+@return 許可が得られたらtrue，そうでなければfalse
 --]]
-
---可読性用enum
-oke.dir = {
-  forward = 0,
-  right = 1,
-  back = 2,
-  left = 3
-}
-
---現在向いている方向, 位置を初期化する
-function oke.compass.init()
-  oke.compass.x, oke.compass.y, oke.compass.z = 0, 0 ,0
-  oke.compass.facing = 0
-end
-
-function oke.compass.getPos()
-  return oke.compass.x, oke.compass.y, oke.compass.z
-end
-
---移動した後の向きは不定
-function oke.compass.moveTo(x, y, z)
-  local function facing(face)
-    while oke.compass.facing ~= face do
-      oke.turn(true)
-    end
-  end
-  if y < oke.compass.y then
-    oke.down(oke.compass.y - y)
-  elseif y > oke.compass.y then
-    oke.up(y - oke.compass.y)
-  end
-  if x < oke.compass.x then
-    facing(3)
-    oke.forward(oke.compass.x - x)
-  elseif x > oke.compass.x then
-    facing(1)
-    oke.forward(x - oke.compass.x)
-  end
-  if z < oke.compass.z then
-    facing(0)
-    oke.forward(oke.compass.z - z)
-  elseif z > oke.compass.z then
-    facing(2)
-    oke.forward(z - oke.compass.z)
-  end
-end
-
-function oke.compass.turnTo(sideNo)
-  while oke.compass.facing ~= sideNo do
-    oke.turn(true)
-  end
-end
-
-local function checkComponent(componentName)
-  if not component.isAvailable(componentName) then
-    io.write("require " .. componentName .. "Aborting...")
-    os.exit()
-  end
-end
-
 function oke.prompt(message)
   io.write(message .. " [Y/n] ")
   local result = io.read()
   return result and (result == "" or result:lower() == "y")
 end
 
---充電を待機する
+--[[
+@fn
+エネルギー量の割合を調べる
+@brief エネルギー量の割合を調べる
+@return 貯蔵されているエネルギー量(0 ~ 1, 1が最大値)
+--]]
+function oke.getEnergyRatio()
+  return (computer.energy() / computer.maxEnergy())
+end
+
+--[[ API - charge ]]--
+
+--[[
+@fn
+ロボットを充電する
+@brief ロボットが充電状態にあるとして，充電完了まで待つ
+@return 充電完了したか
+--]]
 function oke.recharge()
   repeat
-    computer.pullSignal(cfg.interval)
+    computer.pullSignal(CONSTANTS.CHARGE_INTERVAL)
   until computer.energy() >= computer.maxEnergy() - 100
+  return true
 end
 
---toolスロットのアイテムを充電する(ic2の装備を想定)
+--[[
+@fn
+ロボットのツールを充電する
+@brief ロボットのツールスロットのアイテムを充電する(ic2の装備を想定)
+@param (side : number) 充電可能なブロックがある方向
+@return 充電完了できたらtrue，できなければfalse, errmsg
+--]]
 function oke.rechargeTool(side)
-  checkComponent("inventory_controller")
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
   local ic = component.inventory_controller
   local slot = component.robot.select()
+  --ツールスロットと選択されたスロットのアイテムを交換
   ic.equip()
+  --stackは充電しようとしているツールアイテム
   local stack = ic.getStackInInternalSlot(slot)
-  if stack and ic.dropIntoSlot(side, 1) then
-    repeat 
-      local tool = ic.getStackInSlot(sides.down, 1)
-    until tool.charge >= tool.maxCharge
-    ic.suckFromSlot(side, 1)
+  if not stack then
+    return false, CONSTANTS.NOEQUIP_ERROR
   end
+  if not stack.charge or not stack.maxCharge then
+    return false, CONSTANTS.NOIC2EQUIP_ERROR
+  end
+  if not ic.dropIntoSlot(side, 1) then
+    return false, CONSTANTS.NOCHARGEBOX_ERROR
+  end
+  repeat 
+    local tool = ic.getStackInSlot(sides.down, 1)
+  until tool.charge >= tool.maxCharge
+  ic.suckFromSlot(side, 1)
+  --充電したアイテムをツールスロットに戻す
   ic.equip()
+  return true
 end
 
---ロボット内にあるfilterに合致するアイテムの数を数える
+--[[----------------------------------------------------------------------------
+  API - robot - wrapeer
+
+  component.robotをokeの名前空間で使えるようにするだけ
+  TODO fluid関連
+  TODO inventory関連
+----------------------------------------------------------------------------]]--
+
+--[[
+@fn
+robot.compareのwrapper
+@param (side : number) 確認するブロックの方向
+@return boolean[, string] 現在選択されているスロットとブロックが一致するか
+--]]
+function oke.compare(side, fuzzy)
+  return component.robot.compare(side, fuzzy)
+end
+
+--[[
+@fn
+robot.detectのwrapper
+@param (side : number) 確認するブロックの方向
+@return boolean[, string]
+--]]
+function oke.detect(side)
+  return component.robot.detect(side)
+end
+
+--robot.moveはアレンジ版のみ使用可能
+
+--[[
+@fn
+robot.turnのwrapper
+@param (clockwise : boolean) trueで右回り，nil, falseで左回り
+@return boolean[, string] 回転できたか
+--]]
+function oke.turn(clockwise)
+  return component.robot.turn(clockwise)
+end
+
+--[[
+@fn
+robot.useのwrapper
+@param (side : number) ツールを使う方向
+@param (sneaky : boolean) sneak状態での右クリック扱いにするか
+@param (duration : number) 右クリックしている時間の長さ
+@return boolean[, string]
+--]]
+function oke.use(side, sneaky, duration)
+  return component.robot.use(side, sneaky, duration)
+end
+
+--[[
+@fn
+robot.swingのwrapper
+@param (side : number) ツールを使って左クリックする方向
+@return boolean[, string]
+--]]
+function oke.swing(side)
+  return component.robot.swing(side)
+end
+
+--[[----------------------------------------------------------------------------
+  API - robot - addon
+
+  component.robotを便利に扱えるようにするAPI群
+  TODO fluid関連
+  TODO inventory関連
+----------------------------------------------------------------------------]]--
+
+--[[
+@fn
+ロボットの移動を司るコア部分
+@brief side方向にdistance
+@param (side : number) 移動する向き(前，後ろ，上，下のみ)
+@param (distance : number) 移動距離
+@param (destory : boolean) 移動方向に障害物があった場合，除去を試みるか
+@return 
+@detail 移動成功するか，除去に失敗するまで制御は帰ってこない
+        side == sides.back and destroyの場合ブロック破壊はできない
+--]]
+function oke.move(side, distance, destory)
+  local function tryMove()
+    local flag, reason = component.robot.move(side)
+    if not flag and destory and side ~= sides.back then
+      component.robot.swing(side)
+      flag = component.robot.move(side)
+    end
+    return flag
+  end
+  for d = 1, distance do
+    while not tryMove() do
+      os.sleep(CONSTANTS.MOVEFAIE_INTERVAL)
+    end
+  end
+end
+
+function oke.forward(distance, destory)
+  distance = distance or 1
+  oke.move(sides.forward, distance, destory)
+end
+
+function oke.back(distance, destory)
+  distance = distance or 1
+  oke.move(sides.back, distance, destory)
+end
+
+function oke.up(distance, destory)
+  distance = distance or 1
+  oke.move(sides.up, distance, destory)
+end
+
+function oke.down(distance, destory)
+  distance = distance or 1
+  oke.move(sides.down, distance, destory)
+end
+
+function oke.turnRight()
+  return oke.turn(true)
+end
+
+function oke.turnLeft()
+  return oke.turn(false)
+end
+
+function oke.turnAround(clockwise)
+  if clockwise == nil then
+    clockwise = false
+  end
+  return component.robot.turn(clockwise) and component.robot.turn(clockwise)
+end
+
+--[[
+@fn
+robot.placeのオリジナル実装
+@brief side方向にdistance
+@param (side : number) ブロックを設置する向き(前，上，下のみ)
+@param (slot : number) 置くブロックのスロット番号
+@param (destory : boolean) 移動方向に障害物があった場合，除去を試みるか
+@return 
+@detail 設置成功するか，除去に失敗するまで制御は帰ってこない
+        side == sides.back and destroyの場合ブロック破壊はできない
+--]]
+function oke.place(side, slot, replace)
+  side = side or sides.forward
+  local before = component.robot.select()--選択前のスロットを記憶
+  component.robot.select(slot)
+  local function tryPlace()
+    local flag = component.robot.place(side)
+    if not flag and replace then
+      component.robot.swing(side)
+      tryPlace()
+    end
+    component.robot.select(before)
+    return true
+  end
+  if not component.robot.compare(side, true) then--同じブロックなら配置しない
+    while not tryPlace() do
+      os.sleep(CONSTANTS.PLACE_INTERVAL)
+    end
+  end
+  component.robot.select(before)
+  return true
+end
+
+--[[----------------------------------------------------------------------------
+  API - inventory_controller - wrapeer
+
+  inventory_controllerをokeの名前空間で使えるようにするだけ
+----------------------------------------------------------------------------]]--
+
+--[[
+@fn
+inventory_controller.getInventorySize(side)のwrapper
+@param (side : number) 確認するインベントリの方向
+@return number[, string]
+--]]
+function oke.getInventorySize(side)
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
+  return component.inventory_controller.getInventorySize(side)
+end
+
+--[[
+@fn
+inventory_controller.getStackInSlot(side, slot)のwrapper
+@param (side : number) 確認するインベントリの方向
+@param (slot : number) 確認するインベントリのスロット
+@return number[, string]
+--]]
+function oke.getStackInSlot(side, slot)
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
+  return component.inventory_controller.getStackInSlot(side, slot)
+end
+
+--[[
+inventory_controller.getStackInInternalSlotはアレンジ版のみ使用可能
+]]
+
+--[[
+@fn
+inventory_controller.dropIntoSlot(side, slot[, count])のwrapper
+@param (side : number) インベントリの方向
+@param (slot : number) インベントリのスロット
+@param (count : number) 入れるアイテムの数
+@return boolean[, string]
+--]]
+function oke.dropIntoSlot(side, slot, count)
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
+  return component.inventory_controller.dropIntoSlot(side, slot, count)
+end
+
+--[[
+@fn
+inventory_controller.suckFromSlot(side, slot[, count])のwrapper
+@param (side : number) インベントリの方向
+@param (slot : number) インベントリのスロット
+@param (count : number) 取るアイテムの数
+@return boolean[, string]
+--]]
+function oke.suckFromSlot(side, slot, count)
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
+  return component.inventory_controller.suckFromSlot(side, slot, count)
+end
+
+--[[
+@fn
+inventory_controller.equip()と同じ
+@return 移動したアイテムの数
+--]]
+function oke.equip()
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
+  return component.inventory_controller.equip()
+end
+
+--[[---------------------------------------------------------------------------
+  API - inventory_controller - addon
+
+  inventory_controllerを便利に扱える用にするapi群
+---------------------------------------------------------------------------]]--
+
+--[[
+@fn
+アレンジ版inventory_controller.getStackInInternalSlot()
+@brief ツールスロット内のアイテムも参照可能
+@param (slot : number) 確認するスロットの番号
+@return 充電完了できたらtrue，できなければfalse, errmsg
+@detail ロボットのインベントリは左上から1, 2...とスロット
+        が割り当てられているがツールスロットは0としてアクセス可能．
+        ただし，equip()関数を使うため通常の参照よりは遅い
+--]]
+function oke.getStackInInternalSlot(slot)
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
+  if slot == 0 then
+    --このスロットにツールスロットのアイテムが移動する
+    local slot = component.robot.select()
+    component.inventory_controller.equip()
+    local stack = component.inventory_controller.getStackInInternalSlot(slot)
+    component.inventory_controller.equip()
+    return stack
+  else
+    return component.inventory_controller.getStackInInternalSlot(slot)
+  end
+end
+
+--[[
+@fn
+インベントリ内を整理する
+@brief インベントリ内の重複するアイテムをスタック限界まで重ねる
+@return なし
+--]]
+function oke.merge()
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
+  local robot = component.robot
+  local beforeSlot = robot.select()--選択前のスロットを記憶
+  for fromSlot = robot.inventorySize(), 1, -1 do
+    robot.select(fromSlot)
+    for toSlot = 1, fromSlot - 1 do
+      if robot.count(fromSlot) > 0 then 
+        if robot.compareTo(toSlot) or robot.count(toSlot) == 0 then
+          robot.transferTo(toSlot)
+        end
+      else
+        break
+      end
+    end 
+  end
+  robot.select(beforeSlot)
+end
+
+--[[
+@fn
+filterに合致するアイテムを数える
+@brief filterに合致するアイテムを数えるが，ツールスロットは無視する
+@param (filter : function) 選別するアイテムのフィルタ
+@return filterに合致するrobotインベントリ内のアイテムの数
+--]]
 function oke.countStack(filter)
-  checkComponent("inventory_controller")
-  checkComponent("robot")
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
   local size = 0
   for slot = 1, component.robot.inventorySize() do
     local stack = component.inventory_controller.getStackInInternalSlot(slot)
@@ -129,10 +454,17 @@ function oke.countStack(filter)
   return size
 end
 
---ロボット内にあるfilterに合致するツールスロット内のアイテムの数を数える
+--[[
+@fn
+filterに合致するアイテムを数える
+@brief filterに合致するアイテムを数えるが，ツールスロットのみ数える
+@param (filter : function) 選別するアイテムのフィルタ
+@return filterに合致するrobotツールスロット内のアイテムの数
+--]]
 function oke.countToolStack(filter)
-  checkComponent("inventory_controller")
-  checkComponent("robot")
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
   local size = 0
   local slot = component.robot.select()
   oke.equip()
@@ -147,10 +479,19 @@ function oke.countToolStack(filter)
   return size
 end
 
---side方向にインベントリがあればfilterに合致するアイテムがあればcountの数だけ取得する
+--[[
+@fn
+インベントリからロボットにfilterに合致するアイテムを移動する
+@brief side方向のインベントリからロボットにfilterに合致するアイテムをcount個移動する
+@param (side : number) 搬入するインベントリの方向
+@param (filter : function) 選別するアイテムのフィルタ
+@param (count : number) 移動するアイテムの数
+@return 移動したアイテムの数
+--]]
 function oke.pullStack(side, filter, count)
-  checkComponent("inventory_controller")
-  checkComponent("robot")
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
   local remain = count
   for slot = 1, component.inventory_controller.getInventorySize(side) do
     local stack = component.inventory_controller.getStackInSlot(side, slot)
@@ -162,20 +503,32 @@ function oke.pullStack(side, filter, count)
       end
     end
   end
+  return count - remain
 end
 
---１つでもアイテムが移動すればtrueを返す
+--[[
+@fn
+ロボットからインベントリにfilterに合致するアイテムを移動する
+@brief side方向のインベントリにロボットからfilterに合致するアイテムをcount個移動する
+@param (side : number) 搬出するインベントリの方向
+@param (filter : function) 選別するアイテムのフィルタ
+@param (count : number) 移動するアイテムの数
+@return 移動したアイテムの数
+@detail pullStack()はインベントリからでないといけないが，ejectの場合無くても
+        空中にアイテムスタックを放り投げる,インベントリ後部から排出する
+        ツールスロットは含まない
+--]]
 function oke.ejectStack(side, filter, count)
-  checkComponent("inventory_controller")
-  checkComponent("robot")
-  local remain = count 
-  local isEjected = false
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
+  local remain = count
   local preSlot = component.robot.select()
   for slot = component.robot.inventorySize(), 1, -1 do
     local stack = component.inventory_controller.getStackInInternalSlot(slot)
     if stack and filter and filter(stack) then
       component.robot.select(slot)
-      isEjected = component.robot.drop(side, remain) or isEjected
+      component.robot.drop(side, remain)
       remain = remain - stack.size
       if remain <= 0 then
         break
@@ -183,210 +536,117 @@ function oke.ejectStack(side, filter, count)
     end
   end
   component.robot.select(preSlot)
-  return isEjected
+  return count - remain
 end
 
-function oke.merge()
-  checkComponent("inventory_controller")
-  checkComponent("robot")
-  local beforeSlot = component.robot.select()--選択前のスロットを記憶
-  for fromSlot = component.robot.inventorySize(), 1, -1 do
-    component.robot.select(fromSlot)
-    for toSlot = 1, fromSlot - 1 do
-      if component.robot.count(fromSlot) > 0 then 
-        if component.robot.compareTo(toSlot) or component.robot.count(toSlot) == 0 then
-          component.robot.transferTo(toSlot)
-        end
-      else
-        break
-      end
-    end 
+--[[
+@fn
+ロボットのインベントリのfilterに合致するアイテムを設置する
+@brief side方向にロボットのインベントリのfilterに合致するアイテムを設置する
+@param (side : number) 搬出するインベントリの方向
+@param (filter : function) 選別するアイテムのフィルタ
+@param (count : number) 移動するアイテムの数
+@return 移動したアイテムの数
+@detail pullStack()はインベントリからでないといけないが，ejectの場合無くても
+        空中にアイテムスタックを放り投げる
+        ツールスロットは含まない
+--]]
+function oke.placeStack(side, filter, destory)
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
   end
-  component.robot.select(beforeSlot)
-end
-
-function oke.equip()
-  checkComponent("inventory_controller")
-  checkComponent("robot")
-  return component.inventory_controller.equip()
-end
-
---if robot find obstacle, robot will try remove it.
-function oke.move(side, distance, soft)
-  checkComponent("robot")
-  local backflag = false
-  if side == sides.back and not soft then
-    side = sides.forward
-    backflag = true
-    oke.turnAround(true)
-  elseif side == sides.right or side == sides.left then
-    oke.turn(side == sides.right)
-    side = sides.forward
-  end
-  side = side or sides.forward
-  local function tryMove()
-    local flag, reason = component.robot.move(side)
-    if not flag and not soft then
-      component.robot.swing(side)
-      flag = component.robot.move(side)
-    end
-    if flag then--side方向に移動成功
-      if side == sides.down  then
-        oke.compass.y = oke.compass.y - 1
-      elseif side == sides.up then
-        oke.compass.y = oke.compass.y + 1
-      elseif side == sides.forward or side == sides.back then
-        if oke.compass.facing == 0 then
-          if backflag and not soft then
-            oke.compass.z = oke.compass.z + 1
-          else
-            oke.compass.z = oke.compass.z - 1
-          end
-        elseif oke.compass.facing == 1 then
-          if backflag and not soft then
-            oke.compass.x = oke.compass.x - 1
-          else
-            oke.compass.x = oke.compass.x + 1
-          end
-        elseif oke.compass.facing == 2 then
-          if backflag and not soft then
-            oke.compass.z = oke.compass.z - 1
-          else
-            oke.compass.z = oke.compass.z + 1
-          end
-        elseif oke.compass.facing == 3 then
-          if backflag and not soft then
-            oke.compass.x = oke.compass.x + 1
-          else
-            oke.compass.x = oke.compass.x - 1
-          end
-        end
-      end
-    end
-    return flag
-  end
-  for d = 1, distance do
-    while not tryMove() do
-      os.sleep(cfg.interval)
-    end
-  end
-  if backflag and not soft then
-    oke.turnAround(true)
-  end
-end
-
-function oke.forward(distance, soft)
-  distance = distance or 1
-  oke.move(sides.forward, distance, soft)
-end
-
-function oke.back(distance, soft)
-  distance = distance or 1
-  oke.move(sides.back, distance, soft)
-end
-
-function oke.up(distance, soft)
-  distance = distance or 1
-  oke.move(sides.up, distance, soft)
-end
-
-function oke.down(distance, soft)
-  distance = distance or 1
-  oke.move(sides.down, distance, soft)
-end
-
---just readbilty
-function oke.turn(clockwise)
-  checkComponent("robot")
-  if clockwise == nil then
-    clockwise = false
-  end
-  local flag = component.robot.turn(clockwise)
-  if flag then
-    oke.compass.facing = (oke.compass.facing + (clockwise and 1 or -1)) % 4
-  end
-  return flag
-end
-
-function oke.turnRight()
-  return oke.turn(true)
-end
-
-function oke.turnLeft()
-  return oke.turn(false)
-end
-
-function oke.turnAround(clockwise)
-  checkComponent("robot")
-  if clockwise == nil then
-    clockwise = false
-  end
-  oke.compass.facing = (oke.compass.facing + 2) % 4
-  return component.robot.turn(clockwise) and component.robot.turn(clockwise)
-end
-
-function oke.place(direction, slot, soft)
-  checkComponent("robot")
-  direction = direction or sides.forward
-  slot = tonumber(slot)
-  local before = component.robot.select()--選択前のスロットを記憶
-  component.robot.select(slot)
-  local function tryPlace()
-    local flag = component.robot.place(direction)
-    if not flag and not soft then
-      component.robot.swing(direction)
-      tryPlace()
-    end
-    component.robot.select(before)
-    return true
-  end
-  if not component.robot.compare(direction, true) then--同じブロックなら配置しない
-    while not tryPlace() do
-      os.sleep(cfg.interval)
-    end
-  end
-  component.robot.select(before)
-  return true
-end
-
-function oke.swing(side)
-  checkComponent("robot")
-  return component.robot.swing(side or sides.forward)
-end
-
-function oke.use(side)
-  checkComponent("robot")
-  return component.robot.use(side or sides.forward)
-end
-
---soft == trueで既にブロックがあった場合破壊を試みない
-function oke.placeStack(direction, filter, soft)
-  checkComponent("inventory_controller")
-  checkComponent("robot")
   --前回使ったスロットを先に調べる
   local bs = component.inventory_controller.getStackInInternalSlot(state.slot)
   if filter and bs and filter(bs) then
-    return oke.place(direction, state.slot, soft)
+    return oke.place(side, state.slot, destory)
   else
     for slot = 1, component.robot.inventorySize() do
       stack = component.inventory_controller.getStackInInternalSlot(slot)
       if filter and stack and filter(stack) then
         state.slot = slot
-        return oke.place(direction, slot, soft)
+        return oke.place(side, slot, destory)
       end
     end
     return false
   end
 end
 
+--[[
+@fn
+ロボットのインベントリのfilterに合致するアイテムを装備する
+@param (filter : function) 選別するアイテムのフィルタ
+@return アイテムを装備できたか
+--]]
+function oke.equipStack(filter)
+  if not component.isAvailable("inventory_controller") then
+    return false, CONSTANTS.IC_ERROR
+  end
+  local bs = component.robot.select()
+  --robotのインベントリで合致するスロットを探す
+  for slot = 0, component.robot.inventorySize() do
+    local stack = oke.getStackInInternalSlot(slot)
+    if stack and filter(stack) then
+      if slot == 0 then--ツールスロットが合致した
+        return true
+      else
+        component.robot.select(slot)
+        component.inventory_controller.equip()
+      end
+    end
+  end
+  component.robot.select(bs)
+end
+
+-- function oke.useStack(side, filter, sneaky, duration)
+--   --まずツールスロットをチェック
+--   if oke.countToolStack() > 0 then
+--     oke.use()
+--   end
+--   return component.robot.use(side, sneaky, duration)
+-- end
+
+--[[---------------------------------------------------------------------------
+  API - tractor_beam - addon
+
+  tractor_beamを扱いやすくする
+---------------------------------------------------------------------------]]--
 function oke.suckAll()
-  checkComponent("tractor_beam")
+  if not component.isAvailable("tractor_beam") then
+    return false, CONSTANTS.TB_ERROR
+  end
   while component.tractor_beam.suck() do end
 end
 
+--[[---------------------------------------------------------------------------
+  API - geolyzer - wrapper
+
+  geolyzerのwrapper
+---------------------------------------------------------------------------]]--
 function oke.analyze(side)
-  checkComponent("geolyzer")
+  if not component.isAvailable("geolyzer") then
+    return false, CONSTANTS.GEO_ERROR
+  end
+  side = side or sides.forward
   return component.geolyzer.analyze(side)
+end
+
+--[[---------------------------------------------------------------------------
+  API - geolyzer - addon
+
+  geolyzerを扱いやすくする
+---------------------------------------------------------------------------]]--
+function oke.analyzeUp()
+  if not component.isAvailable("geolyzer") then
+    return false, CONSTANTS.GEO_ERROR
+  end
+  return component.geolyzer.analyze(sides.up)
+end
+
+function oke.analyzeDown()
+  if not component.isAvailable("geolyzer") then
+    return false, CONSTANTS.GEO_ERROR
+  end
+  return component.geolyzer.analyze(sides.down)
 end
 
 return oke
