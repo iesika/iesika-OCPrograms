@@ -8,6 +8,7 @@
 
   robotの必要最低限の構成
   :Hardware
+    case(tier3)
     eeprom
     cpu(tier1↑)
     memory(tier1↑)
