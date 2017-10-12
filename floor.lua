@@ -78,15 +78,17 @@ for i = 1, width do
 end
 
 --元の位置に戻る
-if i%2 == 0 then
-  robot.turnLeft()
-else
-  for i = 1, height - 1 do
+if options["r"] then
+  if i%2 == 0 then
+    robot.turnLeft()
+  else
+    for i = 1, height - 1 do
+      repeat until component.robot.move(sides.forward)
+    end
+    robot.turnRigth()
+  end
+  for i = 1, width do
     repeat until component.robot.move(sides.forward)
   end
   robot.turnRigth()
 end
-for i = 1, width do
-  repeat until component.robot.move(sides.forward)
-end
-robot.turnRigth()
