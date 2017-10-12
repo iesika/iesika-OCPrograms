@@ -4,6 +4,22 @@
 @detail
 燃料は考慮しない, 貼るブロックはロボットのインベントリ内のものを使う,
 貼り終えたら元の位置，向きに戻る
+
+ robotの必要最低限の構成
+  :Hardware
+    case(tier1↑)
+    eeprom
+    cpu(tier1↑)
+    memory(tier1↑)
+    HDD(tier1↑)
+    screen(tier1↑)
+    graphic card
+    keyboard
+    Inventory Upgrade
+  :SoftWare
+    luaBIOS(eeprom)
+    OpenOS
+
 @args1 (width : number, nil) 横の長さ (defalt:4)
 @args2 (height : number, nil) 縦の長さ (defalt:4)
 @options
@@ -21,7 +37,7 @@ local sides = require("sides")
 local shell = require("shell")
 local robot = require("robot")
 
-local args, option = shell.parse(...)
+local args, options = shell.parse(...)
 
 local width = tonumber(args[1]) or 4
 local height = tonumber(args[2]) or 4
