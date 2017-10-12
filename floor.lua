@@ -27,7 +27,9 @@
   ロボットのツールスロットにextracell2のblockcontainerがあるものとして
   robotのインベントリ内の資材ではなく，これを用いることで床貼りを行う
 -f
-  ブロックを配置する場所に既にブロックがあった場合
+  ブロックを配置する場所に既にブロックがあった場合置き換えを行う
+-r
+  指定された場合元の位置に戻る
 @author iesika
 @date 2017/9/12~
 --]]
@@ -79,16 +81,17 @@ end
 
 --元の位置に戻る
 if options["r"] then
-  if i%2 == 0 then
+  if width%2 == 0 then
     robot.turnLeft()
   else
     for i = 1, height - 1 do
       repeat until component.robot.move(sides.forward)
     end
-    robot.turnRigth()
+    robot.turnRight()
   end
   for i = 1, width do
     repeat until component.robot.move(sides.forward)
   end
-  robot.turnRigth()
+  robot.turnRight()
 end
+
