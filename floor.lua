@@ -94,4 +94,3 @@ if options["r"] then
   end
   robot.turnRight()
 end
-
