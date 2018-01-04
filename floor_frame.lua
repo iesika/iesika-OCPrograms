@@ -3,7 +3,10 @@ local oke = require("oke")
 local sides = require("sides")
 
 local cfg = {
-    build_material = function(stack) end
+    build_material = 
+        function(stack)
+            return stack.name == "chisel:tyrian" and stack.damage == 1
+        end
 }
 --[[
            ←length→ 
@@ -14,8 +17,8 @@ lengthの長さだけrobotの下にブロックを設置しながら移動する
 local function line(length, material)
     for i = 1, length do
         oke.placeStack(sides.down, material, true)
-        if i != length then
-            oke.move(sides.down, true)
+        if i ~= length then
+            oke.forward(1, true)
         end
     end
 end
@@ -54,9 +57,9 @@ local function make_farm_frame()
             frame(13, 13, cfg.build_material)
             oke.forward(12, true)
         end
-        if i != 3 then
+        if i ~= 3 then
             frame(13, 5, cfg.build_material)
-            oke.forward(5, true)
+            oke.forward(4, true)
         end
     end
     oke.back(188, true)
@@ -68,27 +71,27 @@ local function make_farm_scaffold()
             frame(5, 13, cfg.build_material)
             oke.forward(12, true)
         end
-        if i != 3 then
+        if i ~= 3 then
             frame(5, 5, cfg.build_material)
-            oke.forward(5, true)
+            oke.forward(4, true)
         end
     end
     oke.back(188, true)
 end
 
-local function go_next_frameline()
+local function go_next_frameline(distance)
     oke.turn(true)
-    oke.forward(12, true)
+    oke.forward(distance, true)
     oke.turn(false)
 end
 
 local function main()
     for i = 1, 3 do
         make_farm_scaffold()
-        go_next_frameline()
+        go_next_frameline(4)
         make_farm_frame()
-        if not i != 3 then
-            go_next_frameline()
+        if not i ~= 3 then
+            go_next_frameline(12)
         end
     end
 end
