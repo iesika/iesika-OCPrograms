@@ -3,6 +3,7 @@
 @brief OpenComputersのロボットに床を作らせる
 @detail
 燃料は考慮しない, 貼るブロックはロボットのインベントリ内のものを使う,
+robotの下にブロックを配置する
 貼り終えたら元の位置，向きに戻る
 
  robotの必要最低限の構成
@@ -57,10 +58,25 @@ local function selectNotEmptySlot()
   return false
 end
 
---床はりルーチン
+local function prompt(message)
+  io.write(message .. " [Y/n] ")
+  local result = io.read()
+  return result and (result == "" or result:lower() == "y")
+end
+
+--メイン
+if component.isAvailable("piston") then
+  if(prompt("use piston upgrade?")) then
+    goto PISTON
+  end
+  goto NORMAL
+end
+
+--ピストンを使わない設置
+::NORMAL::
 for i = 1, width do
   for j = 1, height do
-    if option.f and component.robot.detect(sides.down) then
+    if options.f and component.robot.detect(sides.down) then
       component.robot.swing(sides.down)
     end
     selectNotEmptySlot()
@@ -78,7 +94,6 @@ for i = 1, width do
     end
   end
 end
-
 --元の位置に戻る
 if options["r"] then
   if width%2 == 0 then
@@ -94,3 +109,35 @@ if options["r"] then
   end
   robot.turnRight()
 end
+goto END
+
+--ピストンを使う設置
+::PISTON::
+robot.back()
+robot.down()
+for i = 1, width do
+  selectNotEmptySlot()
+  for j = 1, height do
+    if options["e"] then
+      robot.use()
+    else
+      robot.place()
+    end
+    if j ~= height then
+      component.piston.push()
+    end
+  end
+  if i == height then
+    --元の位置に戻る
+    robot.turnLeft()
+    for k = 1, width - 1 do
+      robot.forward()
+    end
+    robot.turnRight()
+  else
+    robot.turnRight()
+    robot.forward()
+    robot.turnLeft()
+  end
+end
+::END::
