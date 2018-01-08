@@ -113,8 +113,8 @@ goto END
 
 --ピストンを使う設置
 ::PISTON::
-robot.back()
-robot.down()
+repeat until robot.back()
+repeat until robot.down()
 for i = 1, width do
   selectNotEmptySlot()
   for j = 1, height do
@@ -131,12 +131,12 @@ for i = 1, width do
     --元の位置に戻る
     robot.turnLeft()
     for k = 1, width - 1 do
-      robot.forward()
+      repeat until robot.forward()
     end
     robot.turnRight()
   else
     robot.turnRight()
-    robot.forward()
+    repeat until robot.forward()
     robot.turnLeft()
   end
 end
