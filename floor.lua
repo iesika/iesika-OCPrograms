@@ -3,7 +3,7 @@
 @brief OpenComputersのロボットに床を作らせる
 @detail
 燃料は考慮しない, 貼るブロックはロボットのインベントリ内のものを使う,
-robotの下にブロックを配置する
+robotの下からブロックを配置する
 貼り終えたら元の位置，向きに戻る
 
  robotの必要最低限の構成
@@ -29,6 +29,7 @@ robotの下にブロックを配置する
   robotのインベントリ内の資材ではなく，これを用いることで床貼りを行う
 -f
   ブロックを配置する場所に既にブロックがあった場合置き換えを行う
+  (ピストンアップグレードを使う時は無意味)
 -r
   指定された場合元の位置に戻る
 @author iesika
@@ -127,13 +128,15 @@ for i = 1, width do
       component.piston.push()
     end
   end
-  if i == height and options["r"] then
-    --元の位置に戻る
-    robot.turnLeft()
-    for k = 1, width - 1 do
-      repeat until robot.forward()
+  if i == height then
+    if options["r"] then
+      --元の位置に戻る
+      robot.turnLeft()
+      for k = 1, width - 1 do
+        repeat until robot.forward()
+      end
+      robot.turnRight()
     end
-    robot.turnRight()
   else
     robot.turnRight()
     repeat until robot.forward()
