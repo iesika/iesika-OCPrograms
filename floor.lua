@@ -127,7 +127,7 @@ for i = 1, width do
       component.piston.push()
     end
   end
-  if i == height then
+  if i == height and options["r"] then
     --元の位置に戻る
     robot.turnLeft()
     for k = 1, width - 1 do
