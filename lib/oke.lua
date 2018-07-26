@@ -225,34 +225,78 @@ function oke.move(side, distance, destory)
   end
 end
 
+--[[
+@fn
+ロボットを前進させる
+@param (distance : number) 移動距離
+@param (destory : boolean) 移動方向に障害物があった場合，除去を試みるか
+@return boolean[, string]
+--]]
 function oke.forward(distance, destory)
   distance = distance or 1
   oke.move(sides.forward, distance, destory)
 end
 
+--[[
+@fn
+ロボットを後退させる
+@param (distance : number) 移動距離
+@param (destory : boolean) 移動方向に障害物があった場合，除去を試みるか
+@return boolean[, string]
+--]]
 function oke.back(distance, destory)
   distance = distance or 1
   oke.move(sides.back, distance, destory)
 end
 
+--[[
+@fn
+ロボットを上昇させる
+@param (distance : number) 移動距離
+@param (destory : boolean) 移動方向に障害物があった場合，除去を試みるか
+@return boolean[, string]
+--]]
 function oke.up(distance, destory)
   distance = distance or 1
   oke.move(sides.up, distance, destory)
 end
 
+--[[
+@fn
+ロボットを下降させる
+@param (distance : number) 移動距離
+@param (destory : boolean) 移動方向に障害物があった場合，除去を試みるか
+@return boolean[, string]
+--]]
 function oke.down(distance, destory)
   distance = distance or 1
   oke.move(sides.down, distance, destory)
 end
 
+--[[
+@fn
+ロボットに右を向かせる
+@return boolean
+--]]
 function oke.turnRight()
   return oke.turn(true)
 end
 
+--[[
+@fn
+ロボットに左を向かせる
+@return boolean
+--]]
 function oke.turnLeft()
   return oke.turn(false)
 end
 
+--[[
+@fn
+ロボットに180°回転させる
+@param (clockwise : boolean) trueの場合右回転，false, nilの場合左回転する
+@return boolean
+--]]
 function oke.turnAround(clockwise)
   if clockwise == nil then
     clockwise = false
